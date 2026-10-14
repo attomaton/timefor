@@ -7,9 +7,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -17,8 +19,8 @@ import androidx.core.os.HandlerCompat
 
 /**
  * Watches which app comes to the foreground. When a limited app opens without a running
- * session, it shows [TimePickerActivity]; when a session runs out, it sends the user home
- * and terminates the app, so the next launch asks for a duration again.
+ * session, it shows [TimePickerActivity]; when a session runs out, it pauses playback, sends the
+ * user home and terminates the app, so the next launch asks for a duration again.
  */
 class AppMonitorService : AccessibilityService() {
 
@@ -27,6 +29,12 @@ class AppMonitorService : AccessibilityService() {
 
     /** Session end each package's timers were scheduled for, to avoid rescheduling. */
     private val scheduledEnds = mutableMapOf<String, Long>()
+
+    /**
+     * One token object per package for its handler timers. Handler matches tokens by identity,
+     * not equals(), so a fresh String with the same package name would not cancel them.
+     */
+    private val timerTokens = mutableMapOf<String, Any>()
 
     private var lastWindowPackage: String? = null
     private var lastPromptPackage: String? = null
@@ -56,10 +64,15 @@ class AppMonitorService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (!::store.isInitialized) return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            pauseExpiredPictureInPicture()
+            return
+        }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         lastWindowPackage = pkg
-        if (pkg == packageName || !::store.isInitialized || !store.isLimited(pkg)) return
+        if (pkg == packageName || !store.isLimited(pkg)) return
 
         if (store.hasActiveSession(pkg)) {
             syncSession(pkg)
@@ -108,21 +121,24 @@ class AppMonitorService : AccessibilityService() {
         }
         val remaining = end - System.currentTimeMillis()
         if (remaining <= 0) {
-            onSessionExpired(pkg)
+            onSessionExpired(pkg, end)
             return
         }
         if (scheduledEnds[pkg] == end) return
 
         cancelTimers(pkg)
         scheduledEnds[pkg] = end
-        HandlerCompat.postDelayed(handler, { onSessionExpired(pkg) }, pkg, remaining)
+        val token = tokenFor(pkg)
+        HandlerCompat.postDelayed(handler, { onSessionExpired(pkg, end) }, token, remaining)
         if (remaining > WARNING_BEFORE_MS) {
-            HandlerCompat.postDelayed(handler, { warnOneMinuteLeft(pkg) }, pkg, remaining - WARNING_BEFORE_MS)
+            HandlerCompat.postDelayed(handler, { warnOneMinuteLeft(pkg) }, token, remaining - WARNING_BEFORE_MS)
         }
     }
 
+    private fun tokenFor(pkg: String): Any = timerTokens.getOrPut(pkg) { Any() }
+
     private fun cancelTimers(pkg: String) {
-        handler.removeCallbacksAndMessages(pkg)
+        handler.removeCallbacksAndMessages(tokenFor(pkg))
         scheduledEnds.remove(pkg)
     }
 
@@ -132,16 +148,46 @@ class AppMonitorService : AccessibilityService() {
         }
     }
 
-    private fun onSessionExpired(pkg: String) {
+    /** Ends the session that was due at [end]. Does nothing if a newer session has replaced it. */
+    private fun onSessionExpired(pkg: String, end: Long) {
+        if (store.sessionEnd(pkg) != end) return
         cancelTimers(pkg)
         store.endSession(pkg)
 
-        if (foregroundPackage() == pkg) {
-            performGlobalAction(GLOBAL_ACTION_HOME)
+        val inForeground = foregroundPackage() == pkg
+        if (inForeground || hasPictureInPictureWindow(pkg)) pauseMedia()
+        if (inForeground) {
             Toast.makeText(this, getString(R.string.toast_time_up, labelOf(pkg)), Toast.LENGTH_LONG).show()
+            // Leave only after playback has stopped: video apps such as YouTube shrink into a
+            // floating mini player when you leave them while a video is playing.
+            handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, PAUSE_BEFORE_HOME_MS)
         }
         // Once the app is in the background, end its process so it starts fresh next time.
-        handler.postDelayed({ killInBackground(pkg) }, KILL_DELAY_MS)
+        handler.postDelayed({ killInBackground(pkg) }, PAUSE_BEFORE_HOME_MS + KILL_DELAY_MS)
+    }
+
+    /**
+     * A limited app whose time is up can keep playing in a picture-in-picture window. Pause it
+     * whenever the windows change, for example when the user opens that window's controls.
+     */
+    private fun pauseExpiredPictureInPicture() {
+        val expired = pictureInPicturePackages().any { store.isLimited(it) && !store.hasActiveSession(it) }
+        if (expired) pauseMedia()
+    }
+
+    private fun hasPictureInPictureWindow(pkg: String) = pkg in pictureInPicturePackages()
+
+    private fun pictureInPicturePackages(): List<String> = try {
+        windows.filter { it.isInPictureInPictureMode }.mapNotNull { it.root?.packageName?.toString() }
+    } catch (e: RuntimeException) {
+        emptyList()
+    }
+
+    /** Sends a media "pause" key, which the app currently playing media receives. */
+    private fun pauseMedia() {
+        val audio = getSystemService(AudioManager::class.java) ?: return
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
     }
 
     private fun killInBackground(pkg: String) {
@@ -162,5 +208,6 @@ class AppMonitorService : AccessibilityService() {
         const val PROMPT_DEBOUNCE_MS = 1_500L
         const val WARNING_BEFORE_MS = 60_000L
         const val KILL_DELAY_MS = 1_500L
+        const val PAUSE_BEFORE_HOME_MS = 300L
     }
 }
