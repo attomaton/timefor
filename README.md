@@ -4,8 +4,8 @@
 much time you want to spend in it. When the time is up, the app closes. You can open it again,
 but you have to choose a duration again first.
 
-[**⬇ Download the latest APK**](https://github.com/no9tos/timefor/releases/latest/download/timefor.apk)
-· [All releases](https://github.com/no9tos/timefor/releases)
+[**⬇ Download the latest APK**](https://github.com/attomaton/timefor/releases/latest/download/timefor.apk)
+· [All releases](https://github.com/attomaton/timefor/releases)
 · [Русский](#русский)
 
 ## Features
@@ -28,7 +28,7 @@ but you have to choose a duration again first.
 
 ## Install
 
-1. Download [`timefor.apk`](https://github.com/no9tos/timefor/releases/latest/download/timefor.apk)
+1. Download [`timefor.apk`](https://github.com/attomaton/timefor/releases/latest/download/timefor.apk)
    on your phone and open it. Allow installs from your browser if Android asks.
    If Play Protect warns about an unknown app, choose **More details → Install anyway**.
 2. Open Timefor, tap **Enable in settings** and turn on the **Timefor app limiter** service.
@@ -83,7 +83,7 @@ distribute must also be open source under the same license.
 Timefor спрашивает, сколько времени вы хотите в нём провести. Когда время выходит, приложение
 закрывается. Открыть его снова можно, но сначала придётся снова выбрать время.
 
-[**⬇ Скачать последнюю версию (APK)**](https://github.com/no9tos/timefor/releases/latest/download/timefor.apk)
+[**⬇ Скачать последнюю версию (APK)**](https://github.com/attomaton/timefor/releases/latest/download/timefor.apk)
 
 **Возможности**
 - Перед открытием спрашивает: «Сколько времени вы хотите провести в …?» Можно выбрать 1, 5, 10,
@@ -97,7 +97,7 @@ Timefor спрашивает, сколько времени вы хотите в
 и не сохраняется.
 
 **Установка**
-1. Скачайте [`timefor.apk`](https://github.com/no9tos/timefor/releases/latest/download/timefor.apk)
+1. Скачайте [`timefor.apk`](https://github.com/attomaton/timefor/releases/latest/download/timefor.apk)
    на телефон и откройте. Если Play Защита предупредит, нажмите **Подробнее → Всё равно
    установить**.
 2. Откройте Timefor → **Включить в настройках** → включите службу **Timefor — ограничение
