@@ -2,7 +2,7 @@
 
 Releases are built and signed by GitHub Actions (`.github/workflows/release.yml`) when a tag
 like `v1.2.3` is pushed. The APK is attached to a GitHub release, and the newest one is always at
-<https://github.com/no9tos/timefor/releases/latest/download/timefor.apk>.
+<https://github.com/attomaton/timefor/releases/latest/download/timefor.apk>.
 
 ## One-time setup: the signing key
 
